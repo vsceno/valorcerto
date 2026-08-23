@@ -1,0 +1,44 @@
+@import 'tailwindcss';
+@import '@fortawesome/fontawesome-free/css/all.min.css';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* Azul confiabilidade - identidade do sistema */
+    --color-marca-50: oklch(0.97 0.014 254.6);
+    --color-marca-100: oklch(0.932 0.032 255.6);
+    --color-marca-500: oklch(0.623 0.214 259.8);
+    --color-marca-600: oklch(0.546 0.245 262.9);
+    --color-marca-700: oklch(0.488 0.243 264.4);
+    --color-marca-800: oklch(0.424 0.199 265.6);
+    --color-marca-900: oklch(0.379 0.146 265.5);
+    --color-marca-950: oklch(0.282 0.091 267.9);
+}
+
+/* Números de dinheiro alinham melhor com fonte tabular. */
+.tabular {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Transição suave quando um valor é recalculado ao vivo. */
+.valor-atualizado {
+    animation: pulso-valor 0.45s ease-out;
+}
+
+@keyframes pulso-valor {
+    0% {
+        background-color: color-mix(in oklab, var(--color-amber-200) 70%, transparent);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+/* Evita o piscar do conteúdo antes do Alpine assumir. */
+[x-cloak] {
+    display: none !important;
+}
