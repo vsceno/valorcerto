@@ -204,6 +204,107 @@
                     </x-card>
                 @endif
 
+                {{-- Comparação com a reforma tributária --}}
+                @if ($comparacao)
+                    @php
+                        $hoje = $comparacao['atual'];
+                        $futuro = $comparacao['futuro'];
+                        $difPreco = $futuro->precoFinal() - $hoje->precoFinal();
+                        $difPct = $hoje->precoFinal() > 0 ? ($difPreco / $hoje->precoFinal()) * 100 : 0;
+                        $difMargem = $futuro->valorMargemContribuicao - $hoje->valorMargemContribuicao;
+                    @endphp
+
+                    <x-card titulo="Reforma tributária: como fica em {{ $dataReforma->year }}" icone="fa-scale-unbalanced"
+                            descricao="CBS e IBS são apurados por fora — somados ao preço em vez de embutidos nele. Isso muda a mecânica, não só a alíquota.">
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            {{-- Hoje --}}
+                            <div class="rounded-xl border border-slate-200 p-4">
+                                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Modelo atual</p>
+                                <p class="tabular mt-2 text-2xl font-bold text-slate-900">@moeda($hoje->precoFinal())</p>
+                                <p class="text-xs text-slate-500">cobrado do cliente</p>
+
+                                <dl class="mt-3 space-y-1.5 border-t border-slate-100 pt-3 text-sm">
+                                    <div class="flex justify-between">
+                                        <dt class="text-slate-500">Preço líquido</dt>
+                                        <dd class="tabular text-slate-900">@moeda($hoje->precoVenda)</dd>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <dt class="text-slate-500">Tributos por dentro</dt>
+                                        <dd class="tabular text-amber-700">@pct($hoje->somaAliquotasEfetivas)</dd>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <dt class="text-slate-500">Margem em R$</dt>
+                                        <dd class="tabular text-emerald-700">@moeda($hoje->valorMargemContribuicao)</dd>
+                                    </div>
+                                </dl>
+                            </div>
+
+                            {{-- Reforma --}}
+                            <div class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                                <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                                    A partir de {{ $dataReforma->format('d/m/Y') }}
+                                </p>
+                                <p class="tabular mt-2 text-2xl font-bold text-emerald-900">@moeda($futuro->precoFinal())</p>
+                                <p class="text-xs text-emerald-700">cobrado do cliente</p>
+
+                                <dl class="mt-3 space-y-1.5 border-t border-emerald-200 pt-3 text-sm">
+                                    <div class="flex justify-between">
+                                        <dt class="text-emerald-800">Preço líquido</dt>
+                                        <dd class="tabular text-emerald-900">@moeda($futuro->precoVenda)</dd>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <dt class="text-emerald-800">+ Tributos por fora</dt>
+                                        <dd class="tabular text-emerald-900">
+                                            @moeda($futuro->valorTributosPorFora) (@pct($futuro->somaAliquotasPorFora))
+                                        </dd>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <dt class="text-emerald-800">Margem em R$</dt>
+                                        <dd class="tabular text-emerald-900">@moeda($futuro->valorMargemContribuicao)</dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                            <div @class([
+                                'rounded-lg px-4 py-3 text-sm',
+                                'bg-emerald-50 text-emerald-900' => $difPreco <= 0,
+                                'bg-amber-50 text-amber-900' => $difPreco > 0,
+                            ])>
+                                <p class="font-medium">Valor cobrado do cliente</p>
+                                <p class="tabular mt-0.5 text-lg font-bold">
+                                    <i class="fa-solid {{ $difPreco > 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' }}"></i>
+                                    @moeda($difPreco) (@pct($difPct))
+                                </p>
+                            </div>
+
+                            <div @class([
+                                'rounded-lg px-4 py-3 text-sm',
+                                'bg-emerald-50 text-emerald-900' => $difMargem >= 0,
+                                'bg-rose-50 text-rose-900' => $difMargem < 0,
+                            ])>
+                                <p class="font-medium">Sua margem em reais</p>
+                                <p class="tabular mt-0.5 text-lg font-bold">
+                                    <i class="fa-solid {{ $difMargem >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' }}"></i>
+                                    @moeda($difMargem)
+                                </p>
+                            </div>
+                        </div>
+
+                        <x-slot:rodape>
+                            <div class="flex items-start gap-2">
+                                <i class="fa-solid fa-triangle-exclamation mt-0.5 text-amber-600"></i>
+                                <p>
+                                    As alíquotas de CBS e IBS ainda serão fixadas por lei específica e resolução do
+                                    Senado. Os percentuais usados aqui são a estimativa divulgada pelo Ministério da
+                                    Fazenda e servem só para simulação — confirme com sua contabilidade.
+                                </p>
+                            </div>
+                        </x-slot:rodape>
+                    </x-card>
+                @endif
+
                 {{-- Memória de cálculo --}}
                 <x-card titulo="4. Memória de cálculo" icone="fa-list-ol"
                         descricao="Cada etapa do preço, com fórmula e substituição — é este rastro que justifica o valor praticado.">

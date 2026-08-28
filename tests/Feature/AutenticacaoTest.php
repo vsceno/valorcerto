@@ -88,7 +88,7 @@ class AutenticacaoTest extends TestCase
 
         $this->get(route('tributos.index'))->assertForbidden();
         $this->get(route('custos-fixos.index'))->assertForbidden();
-        $this->get(route('empresa.edit'))->assertForbidden();
+        $this->get(route('empresa.index'))->assertForbidden();
         $this->get(route('usuarios.index'))->assertForbidden();
     }
 
@@ -110,7 +110,7 @@ class AutenticacaoTest extends TestCase
 
         $this->get(route('tributos.index'))->assertOk();
         $this->get(route('custos-fixos.index'))->assertOk();
-        $this->get(route('empresa.edit'))->assertOk();
+        $this->get(route('empresa.index'))->assertOk();
         $this->get(route('usuarios.index'))->assertOk();
     }
 

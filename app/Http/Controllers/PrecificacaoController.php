@@ -9,6 +9,8 @@ use App\Models\Item;
 use App\Models\Precificacao;
 use App\Models\Tributo;
 use App\Services\PrecificacaoService;
+use App\Support\ReformaTributaria;
+use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -50,12 +52,27 @@ class PrecificacaoController extends Controller
             }
         }
 
+        // Comparação com o cenário pós-reforma, quando houver tributos com
+        // vigência futura cadastrados.
+        $comparacao = null;
+        $dataReforma = Carbon::create(ReformaTributaria::ANO_CBS_INTEGRAL, 1, 1)->startOfDay();
+
+        if ($item && $resultado && $dataReforma->isFuture() && $this->temTributosFuturos($empresa, $dataReforma)) {
+            try {
+                $comparacao = $this->servico->compararCenarios($item, $dataReforma);
+            } catch (PrecificacaoInviavelException) {
+                $comparacao = null;
+            }
+        }
+
         return view('precificacao.simulador', [
             'empresa' => $empresa,
             'itens' => $itens,
             'item' => $item,
             'resultado' => $resultado,
             'erro' => $erro,
+            'comparacao' => $comparacao,
+            'dataReforma' => $dataReforma,
             'custoFixoTotal' => $empresa?->custoFixoTotalMensal() ?? 0.0,
             'tributosProduto' => $this->tributosDoTipo($empresa, 'produto'),
             'tributosServico' => $this->tributosDoTipo($empresa, 'servico'),
@@ -160,6 +177,20 @@ class PrecificacaoController extends Controller
             'anterior' => $anterior,
             'integra' => $precificacao->hash_auditoria !== null,
         ]);
+    }
+
+    /**
+     * Existe tributo que só passa a valer na data futura informada?
+     */
+    private function temTributosFuturos(?Empresa $empresa, Carbon $data): bool
+    {
+        return Tributo::query()
+            ->where('empresa_id', $empresa?->id)
+            ->ativos()
+            ->whereNotNull('vigencia_inicio')
+            ->where('vigencia_inicio', '>', now())
+            ->where('vigencia_inicio', '<=', $data)
+            ->exists();
     }
 
     /**

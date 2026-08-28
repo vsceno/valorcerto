@@ -8,6 +8,7 @@ use App\Models\Composicao;
 use App\Models\Item;
 use App\Models\Precificacao;
 use App\Models\Tributo;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
@@ -37,6 +38,7 @@ class PrecificacaoService
         array $tributos,
         float $margemContribuicao,
         ?float $precoAnterior = null,
+        ?string $cenario = null,
     ): ResultadoPrecificacao {
         $this->validarEntradas($custoVariavelUnitario, $custoFixoTotal, $volumeProjetado, $margemContribuicao);
 
@@ -66,22 +68,36 @@ class PrecificacaoService
             'explicacao' => 'É o numerador da fórmula: o custo real que o preço precisa cobrir antes de tributos e margem.',
         ];
 
-        // Passo 3 - Soma das alíquotas EFETIVAS (não as nominais).
+        // Passo 3 - Soma das alíquotas EFETIVAS que incidem POR DENTRO.
+        // Tributos por fora (IPI hoje; CBS e IBS na reforma) não entram aqui:
+        // eles não estão embutidos no preço, e sim somados a ele no passo 7.
         $tributosNormalizados = $this->normalizarTributos($tributos);
-        $somaAliquotas = array_sum(array_column($tributosNormalizados, 'aliquota_efetiva'));
+        $porDentro = array_values(array_filter(
+            $tributosNormalizados,
+            fn (array $t): bool => $t['base_calculo'] !== 'por_fora'
+        ));
+        $porFora = array_values(array_filter(
+            $tributosNormalizados,
+            fn (array $t): bool => $t['base_calculo'] === 'por_fora'
+        ));
+
+        $somaAliquotas = array_sum(array_column($porDentro, 'aliquota_efetiva'));
+        $somaPorFora = array_sum(array_column($porFora, 'aliquota_efetiva'));
+
         $memoria[] = [
             'ordem' => 3,
-            'titulo' => 'Soma das alíquotas tributárias efetivas',
-            'formula' => 'Soma das Alíquotas = ICMS + PIS + COFINS + ISS + outros (efetivos)',
-            'substituicao' => $tributosNormalizados === []
-                ? 'Nenhum tributo aplicável cadastrado'
+            'titulo' => 'Soma das alíquotas efetivas embutidas no preço',
+            'formula' => 'Soma das Alíquotas = ICMS + PIS + COFINS + ISS + outros (efetivos, por dentro)',
+            'substituicao' => $porDentro === []
+                ? 'Nenhum tributo por dentro aplicável'
                 : implode(' + ', array_map(
                     fn (array $t): string => sprintf('%s %s', $t['sigla'], $this->percentual($t['aliquota_efetiva'])),
-                    $tributosNormalizados
+                    $porDentro
                 )),
             'resultado' => $this->percentual($somaAliquotas),
             'resultado_valor' => round($somaAliquotas, 4),
-            'explicacao' => 'Usa-se a alíquota efetiva (já descontados créditos e reduções de base), porque é ela que de fato sai do caixa.',
+            'explicacao' => 'Usa-se a alíquota efetiva (já descontados créditos e reduções de base), porque é ela '
+                .'que de fato sai do caixa. Só entram aqui os tributos embutidos no preço.',
         ];
 
         // Passo 4 - Divisor: a fatia do preço que NÃO é tributo nem margem.
@@ -147,6 +163,31 @@ class PrecificacaoService
             'explicacao' => 'Conferência de auditoria: as três parcelas reconstroem o preço, comprovando que a margem foi apurada sobre o preço final.',
         ];
 
+        // Passo 7 - Tributos por fora, quando existirem: incidem sobre o preço
+        // já formado e são somados a ele. É a mecânica da CBS e do IBS.
+        $valorPorFora = $precoVenda * ($somaPorFora / 100);
+
+        if ($porFora !== []) {
+            $memoria[] = [
+                'ordem' => 7,
+                'titulo' => 'Tributos calculados por fora',
+                'formula' => 'Preço Final = Preço Líquido + (Preço Líquido × Alíquotas por Fora)',
+                'substituicao' => sprintf(
+                    '%s + (%s × %s)',
+                    $this->moeda($precoVenda),
+                    $this->moeda($precoVenda),
+                    $this->percentual($somaPorFora)
+                ),
+                'resultado' => $this->moeda($precoVenda + $valorPorFora),
+                'resultado_valor' => round($precoVenda + $valorPorFora, 4),
+                'explicacao' => sprintf(
+                    'Estes tributos (%s) não ficam embutidos no preço: são acrescentados a ele. '
+                    .'A receita da empresa continua sendo o preço líquido; o cliente paga o total.',
+                    implode(', ', array_column($porFora, 'sigla'))
+                ),
+            ];
+        }
+
         $markup = $custoTotalUnitario > 0 ? $precoVenda / $custoTotalUnitario : 0.0;
 
         return new ResultadoPrecificacao(
@@ -172,6 +213,9 @@ class PrecificacaoService
                 tributos: $tributosNormalizados,
                 precoAnterior: $precoAnterior,
             ),
+            somaAliquotasPorFora: round($somaPorFora, 4),
+            valorTributosPorFora: round($valorPorFora, 4),
+            cenario: $cenario,
         );
     }
 
@@ -184,14 +228,9 @@ class PrecificacaoService
         ?float $margemContribuicao = null,
         ?float $custoVariavelUnitario = null,
         ?float $volumeProjetado = null,
+        ?CarbonInterface $data = null,
+        ?string $cenario = null,
     ): ResultadoPrecificacao {
-        $tributos = Tributo::query()
-            ->where('empresa_id', $item->empresa_id)
-            ->ativos()
-            ->aplicaveisA($item->tipo)
-            ->orderBy('sigla')
-            ->get();
-
         $precoAnterior = $item->ultimaPrecificacao?->preco_venda;
 
         return $this->calcular(
@@ -199,10 +238,63 @@ class PrecificacaoService
             custoVariavelUnitario: $custoVariavelUnitario ?? $item->custoVariavelEfetivo(),
             custoFixoTotal: $item->empresa?->custoFixoTotalMensal() ?? 0.0,
             volumeProjetado: $volumeProjetado ?? $item->volumeParaRateio(),
-            tributos: $this->tributosParaArray($tributos),
+            tributos: $this->tributosParaArray($this->tributosDoItem($item, $data)),
             margemContribuicao: $margemContribuicao ?? (float) $item->margem_contribuicao_desejada,
             precoAnterior: $precoAnterior !== null ? (float) $precoAnterior : null,
+            cenario: $cenario,
         );
+    }
+
+    /**
+     * Tributos que incidem sobre o item: filtrados pelo tipo, pela vigência na
+     * data e pelo regime tributário da empresa.
+     *
+     * @return Collection<int, Tributo>
+     */
+    public function tributosDoItem(Item $item, ?CarbonInterface $data = null): Collection
+    {
+        return Tributo::query()
+            ->where('empresa_id', $item->empresa_id)
+            ->ativos()
+            ->aplicaveisA($item->tipo)
+            ->vigentesEm($data)
+            ->paraRegime($item->empresa?->regime_tributario)
+            ->orderBy('base_calculo')
+            ->orderBy('sigla')
+            ->get();
+    }
+
+    /**
+     * Compara o preço no modelo vigente hoje com o preço na data futura
+     * informada, quando os tributos da reforma já estiverem em vigor.
+     *
+     * @return array{atual: ResultadoPrecificacao, futuro: ResultadoPrecificacao}
+     */
+    public function compararCenarios(
+        Item $item,
+        CarbonInterface $dataFutura,
+        ?float $margemContribuicao = null,
+        ?float $custoVariavelUnitario = null,
+        ?float $volumeProjetado = null,
+    ): array {
+        return [
+            'atual' => $this->calcularParaItem(
+                item: $item,
+                margemContribuicao: $margemContribuicao,
+                custoVariavelUnitario: $custoVariavelUnitario,
+                volumeProjetado: $volumeProjetado,
+                data: now(),
+                cenario: 'Modelo atual',
+            ),
+            'futuro' => $this->calcularParaItem(
+                item: $item,
+                margemContribuicao: $margemContribuicao,
+                custoVariavelUnitario: $custoVariavelUnitario,
+                volumeProjetado: $volumeProjetado,
+                data: $dataFutura,
+                cenario: 'Reforma em '.$dataFutura->format('d/m/Y'),
+            ),
+        ];
     }
 
     /**
@@ -276,6 +368,7 @@ class PrecificacaoService
             'nome' => $t->nome,
             'aliquota_nominal' => (float) $t->aliquota_nominal,
             'aliquota_efetiva' => (float) $t->aliquota_efetiva,
+            'base_calculo' => $t->base_calculo,
             'base_legal' => $t->base_legal,
         ])->values()->all();
     }
@@ -323,6 +416,7 @@ class PrecificacaoService
                 'nome' => (string) ($tributo['nome'] ?? ''),
                 'aliquota_nominal' => (float) ($tributo['aliquota_nominal'] ?? $aliquota),
                 'aliquota_efetiva' => $aliquota,
+                'base_calculo' => ($tributo['base_calculo'] ?? 'por_dentro') === 'por_fora' ? 'por_fora' : 'por_dentro',
                 'base_legal' => $tributo['base_legal'] ?? null,
             ];
         }

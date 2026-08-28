@@ -65,8 +65,8 @@
                     <x-nav-item :href="route('tributos.index')" :ativo="request()->routeIs('tributos.*')" icone="fa-percent">
                         Tributos
                     </x-nav-item>
-                    <x-nav-item :href="route('empresa.edit')" :ativo="request()->routeIs('empresa.*')" icone="fa-gear">
-                        Empresa
+                    <x-nav-item :href="route('empresa.index')" :ativo="request()->routeIs('empresa.*')" icone="fa-building">
+                        Empresas
                     </x-nav-item>
                 </x-nav-grupo>
 

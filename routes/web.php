@@ -60,6 +60,15 @@ Route::middleware(['auth', 'can:administrar'])->group(function (): void {
     Route::resource('custos-fixos', CustoFixoController::class)->except(['show']);
     Route::resource('usuarios', UsuarioController::class)->except(['show']);
 
-    Route::get('/empresa', [EmpresaController::class, 'edit'])->name('empresa.edit');
-    Route::put('/empresa', [EmpresaController::class, 'update'])->name('empresa.update');
+    Route::prefix('empresas')->name('empresa.')->group(function (): void {
+        Route::get('/', [EmpresaController::class, 'index'])->name('index');
+        Route::get('/nova', [EmpresaController::class, 'create'])->name('create');
+        Route::post('/', [EmpresaController::class, 'store'])->name('store');
+        Route::get('/{empresa}/editar', [EmpresaController::class, 'edit'])->name('edit');
+        Route::put('/{empresa}', [EmpresaController::class, 'update'])->name('update');
+        Route::delete('/{empresa}', [EmpresaController::class, 'destroy'])->name('destroy');
+        Route::post('/{empresa}/selecionar', [EmpresaController::class, 'selecionar'])->name('selecionar');
+        Route::get('/{empresa}/tributos-sugeridos', [EmpresaController::class, 'tributosSugeridos'])->name('tributos-sugeridos');
+        Route::post('/{empresa}/aplicar-sugestao', [EmpresaController::class, 'aplicarSugestao'])->name('aplicar-sugestao');
+    });
 });

@@ -27,10 +27,23 @@ class TributoRequest extends FormRequest
             'sigla' => ['required', 'string', 'max:20'],
             'aliquota_nominal' => ['required', 'numeric', 'min:0', 'max:100'],
             'aliquota_efetiva' => ['required', 'numeric', 'min:0', 'max:100'],
+            'base_calculo' => ['required', Rule::in(array_keys(Tributo::BASES))],
             'aplica_a' => ['required', Rule::in(array_keys(Tributo::APLICACOES))],
+            'vigencia_inicio' => ['nullable', 'date'],
+            'vigencia_fim' => ['nullable', 'date', 'after_or_equal:vigencia_inicio'],
             'base_legal' => ['nullable', 'string', 'max:255'],
             'observacoes' => ['nullable', 'string', 'max:2000'],
             'ativo' => ['boolean'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'vigencia_fim.after_or_equal' => 'O fim da vigência não pode ser anterior ao início.',
         ];
     }
 
@@ -53,7 +66,11 @@ class TributoRequest extends FormRequest
     {
         $this->merge(array_merge(
             $this->decimais(['aliquota_nominal', 'aliquota_efetiva']),
-            ['ativo' => $this->boolean('ativo')],
+            [
+                'ativo' => $this->boolean('ativo'),
+                'vigencia_inicio' => $this->input('vigencia_inicio') ?: null,
+                'vigencia_fim' => $this->input('vigencia_fim') ?: null,
+            ],
         ));
     }
 }

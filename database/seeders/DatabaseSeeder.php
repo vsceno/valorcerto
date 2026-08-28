@@ -42,6 +42,11 @@ class DatabaseSeeder extends Seeder
                 'razao_social' => 'ValorCerto Comércio e Serviços LTDA',
                 'nome_fantasia' => 'ValorCerto',
                 'regime_tributario' => 'lucro_presumido',
+                'atividade' => 'misto',
+                'uf' => 'SP',
+                'municipio' => 'São Paulo',
+                'faturamento_12_meses' => 2400000,
+                'regime_vigente_desde' => '2026-01-01',
                 'volume_projetado_mensal' => 500,
                 'ativo' => true,
             ],
@@ -52,6 +57,7 @@ class DatabaseSeeder extends Seeder
         $this->itens($empresa);
 
         $this->call(CatracaSeeder::class);
+        $this->call(ReformaTributariaSeeder::class);
     }
 
     /**

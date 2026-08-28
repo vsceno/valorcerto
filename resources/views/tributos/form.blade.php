@@ -36,6 +36,25 @@
                     <x-campo nome="aliquota_efetiva" rotulo="Alíquota efetiva" tipo="number" step="0.01" min="0" max="100"
                              :valor="$tributo->aliquota_efetiva" sufixo="%" obrigatorio
                              ajuda="O que de fato sai do caixa, líquido de créditos e reduções de base." />
+
+                    <div class="sm:col-span-2">
+                        <x-selecao nome="base_calculo" rotulo="Base de cálculo" :opcoes="\App\Models\Tributo::BASES"
+                                   :valor="$tributo->base_calculo ?? 'por_dentro'" obrigatorio
+                                   ajuda="Por dentro entra no divisor da fórmula; por fora é somado ao preço já formado (IPI hoje, CBS e IBS na reforma)." />
+                    </div>
+                </div>
+            </x-card>
+
+            <x-card titulo="Vigência" icone="fa-calendar-days"
+                    descricao="Permite o cadastro atual e o pós-reforma conviverem sem se misturarem no cálculo.">
+                <div class="grid gap-5 sm:grid-cols-2">
+                    <x-campo nome="vigencia_inicio" rotulo="Vigente a partir de" tipo="date"
+                             :valor="$tributo->vigencia_inicio?->format('Y-m-d')"
+                             ajuda="Em branco, vale desde sempre." />
+
+                    <x-campo nome="vigencia_fim" rotulo="Vigente até" tipo="date"
+                             :valor="$tributo->vigencia_fim?->format('Y-m-d')"
+                             ajuda="Em branco, vale por prazo indeterminado." />
                 </div>
             </x-card>
 
